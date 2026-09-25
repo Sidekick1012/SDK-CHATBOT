@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Sidekick AI – Chat Widget</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    /* Clean neutral page bg — in real use this is transparent */
+    body {
+      font-family: 'Inter', sans-serif;
+      background: #f0f4f3;
+      min-height: 100vh;
+    }
+
+    :root {
+      --teal:  #1b6656;
+      --navy:  #1d4354;
+      --green: #7bb06b;
+    }
+
+    /* ══════════════════════
+       FLOATING LAUNCHER BTN
+    ══════════════════════ */
+    #chat-launcher {
+      position: fixed; bottom: 28px; right: 28px; z-index: 9998;
+      width: 68px; height: 68px;
+      background: linear-gradient(145deg, #7bb06b, #1b6656);
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer;
+      box-shadow: 0 8px 30px rgba(27,102,86,0.5);
+      animation: launcherIn 0.5s 0.3s cubic-bezier(0.175,0.885,0.32,1.275) both,
+                 launcherGlow 2.5s 1.5s infinite;
+      transition: transform 0.2s;
+    }
+    #chat-launcher:hover { transform: scale(1.07); }
+    #chat-launcher img { width: 46px; height: 46px; border-radius: 50%; object-fit: cover; pointer-events: none; }
+
+    .launcher-badge {
+      position: absolute; top: 1px; right: 1px;
+      width: 20px; height: 20px;
+      background: #ff4757; border: 2.5px solid #fff;
+      border-radius: 50%; display: flex; align-items: center; justify-content: center;
+      font-size: 10px; font-weight: 700; color: #fff;
+    }
+
+    /* Tooltip on hover */
+    .launcher-tooltip {
+      position: absolute; bottom: 76px; right: 0;
+      background: var(--navy); color: #fff;
+      font-size: 12px; font-weight: 500;
+      padding: 7px 14px; border-radius: 10px; white-space: nowrap;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+      opacity: 0; pointer-events: none;
+      transition: opacity 0.2s;
+    }
+    .launcher-tooltip::after {
+      content: ''; position: absolute; bottom: -5px; right: 22px;
+      width: 10px; height: 10px;
+      background: var(--navy); transform: rotate(45deg);
+      border-radius: 2px;
+    }
+    #chat-launcher:hover .launcher-tooltip { opacity: 1; }
+
+    @keyframes launcherIn { from { opacity:0; transform:scale(0.3); } to { opacity:1; transform:scale(1); } }
+    @keyframes launcherGlow { 0% { box-shadow: 0 8px 30px rgba(27,102,86,0.5), 0 0 0 0 rgba(123,176,107,0.45); } 70% { box-shadow: 0 8px 30px rgba(27,102,86,0.5), 0 0 0 16px rgba(123,176,107,0); } 100% { box-shadow: 0 8px 30px rgba(27,102,86,0.5), 0 0 0 0 rgba(123,176,107,0); } }
+
+    /* ══════════════════════
+       CHAT WINDOW
+    /* ══════════════════════
+       CHAT WINDOW
+    ══════════════════════ */
+    #chat-window {
+      position: fixed;
+      bottom: 96px; right: 24px;
+      z-index: 9999;
+      width: min(390px, calc(100vw - 28px));
+      height: min(600px, calc(100vh - 116px));
+      border-radius: 22px;
+      background: #fff;
+      box-shadow: 0 20px 50px rgba(0,0,0,0.18), 0 4px 16px rgba(27,102,86,0.1);
+      display: flex; flex-direction: column;
+      overflow: hidden;
+      transform-origin: bottom right;
+      transform: scale(0.85) translateY(20px);
+      opacity: 0; pointer-events: none;
+      transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.22s ease;
+    }
+    #chat-window.open {
+      transform: scale(1) translateY(0);
+      opacity: 1; pointer-events: all;
+    }
+
+    /* ── Compact Header ── */
+    .w-header {
+      background: linear-gradient(135deg, #1d4354 0%, #1b6656 100%);
+      padding: 14px 16px;
+      position: relative; overflow: hidden; flex-shrink: 0;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+    }
+    .w-header::before {
+      content: ''; position: absolute; top: -30px; right: -30px;
+      width: 120px; height: 120px;
+      background: radial-gradient(circle, rgba(123,176,107,0.25) 0%, transparent 70%);
+      border-radius: 50%;
+    }
+
+    .w-header-top { display: flex; align-items: center; gap: 11px; position: relative; z-index: 2; }
+    .w-av-wrap { position: relative; flex-shrink: 0; }
+    .w-av {
+      width: 44px; height: 44px; border-radius: 50%; object-fit: cover;
+      border: 2px solid rgba(123,176,107,0.8);
+      box-shadow: 0 3px 10px rgba(0,0,0,0.25);
+      background: linear-gradient(135deg, #7bb06b, #1b6656);
+      display: block;
+    }
+    .w-dot {
+      position: absolute; bottom: 1px; right: 1px;
+      width: 11px; height: 11px;
+      background: #2ed573; border: 2px solid #1b6656; border-radius: 50%;
+      box-shadow: 0 0 6px rgba(46,213,115,0.7);
+    }
+    .w-hdr-info { flex: 1; min-width: 0; }
+    .w-hdr-info h3 {
+      font-size: 14.5px; font-weight: 700; color: #fff;
+      display: flex; align-items: center; gap: 6px;
+      letter-spacing: -0.2px;
+    }
+    .w-hdr-info p {
+      font-size: 11px; color: rgba(255,255,255,0.72);
+      margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+
+    .w-close {
+      margin-left: auto; position: relative; z-index: 2;
+      width: 30px; height: 30px;
+      background: rgba(255,255,255,0.12); border: none; border-radius: 50%;
+      color: #fff; font-size: 18px; line-height: 1; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: background 0.2s, transform 0.15s;
+    }
+    .w-close:hover { background: rgba(255,255,255,0.24); transform: scale(1.05); }
+
+    /* ── Sleek Single-Line Chips ── */
+    .w-chips {
+      padding: 8px 12px;
+      display: flex; gap: 7px;
+      overflow-x: auto;
+      white-space: nowrap;
+      background: #f8faf9;
+      border-bottom: 1px solid rgba(27,102,86,0.08);
+      flex-shrink: 0;
+      scrollbar-width: none;
+      transition: all 0.25s ease;
+    }
+    .w-chips::-webkit-scrollbar { display: none; }
+    .w-chip {
+      padding: 5px 12px;
+      background: #fff; border: 1px solid rgba(27,102,86,0.22);
+      border-radius: 20px; font-size: 11.5px; font-weight: 500;
+      color: #1b6656; cursor: pointer; transition: all 0.18s;
+      flex-shrink: 0; display: inline-flex; align-items: center; gap: 4px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+    }
+    .w-chip:hover {
+      background: #1b6656; color: #fff; border-color: #1b6656;
+      transform: translateY(-1px); box-shadow: 0 3px 8px rgba(27,102,86,0.25);
+    }
+
+    /* ── Messages Container ── */
+    #w-msgs {
+      flex: 1 1 0%;
+      min-height: 0;
+      overflow-y: auto;
+      padding: 16px 14px 20px 14px;
+      display: flex; flex-direction: column; gap: 14px;
+      scroll-behavior: smooth;
+      background: #fbfdfc;
+    }
+    #w-msgs::-webkit-scrollbar { width: 5px; }
+    #w-msgs::-webkit-scrollbar-track { background: transparent; }
+    #w-msgs::-webkit-scrollbar-thumb { background: rgba(27,102,86,0.18); border-radius: 10px; }
+    #w-msgs::-webkit-scrollbar-thumb:hover { background: rgba(27,102,86,0.35); }
+
+    .w-row {
+      display: flex; align-items: flex-end; gap: 8px;
+      animation: wIn 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+      opacity: 0;
+    }
+    .w-row.user { flex-direction: row-reverse; }
+    @keyframes wIn { from { opacity:0; transform: translateY(8px) scale(0.97); } to { opacity:1; transform: none; } }
+
+    .w-av-sm {
+      width: 30px; height: 30px; flex-shrink: 0;
+      border-radius: 50%; object-fit: cover;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+      border: 1.5px solid rgba(123,176,107,0.5);
+      background: linear-gradient(135deg, #7bb06b, #1b6656);
+    }
+    .w-av-sm.user-av {
+      background: linear-gradient(135deg, #1d4354, #1b6656);
+      color: #fff; display: flex; align-items: center; justify-content: center;
+      font-size: 13px; border: 1.5px solid rgba(255,255,255,0.6);
+      box-shadow: 0 2px 6px rgba(27,102,86,0.25);
+    }
+
+    .w-bbl {
+      max-width: 82%; padding: 11px 14px;
+      border-radius: 18px; font-size: 13px; line-height: 1.55;
+      box-shadow: 0 2px 7px rgba(0,0,0,0.05);
+      word-break: break-word;
+    }
+    .w-row.bot .w-bbl {
+      background: #ffffff;
+      border: 1px solid rgba(27,102,86,0.12);
+      border-bottom-left-radius: 4px;
+      color: #173832;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    }
+    .w-row.user .w-bbl {
+      background: linear-gradient(135deg, #1b6656 0%, #1d4354 100%);
+      color: #ffffff;
+      border-bottom-right-radius: 4px;
+      box-shadow: 0 3px 12px rgba(27,102,86,0.22);
+    }
+    .w-bbl p { margin: 0 0 6px 0; }
+    .w-bbl p:last-child { margin-bottom: 0; }
+    .w-bbl ul { margin: 4px 0 6px 16px; padding: 0; }
+    .w-bbl li { margin-bottom: 3px; }
+    .w-bbl strong { color: #1b6656; font-weight: 600; }
+    .w-row.user .w-bbl strong { color: #b6e8a8; }
+    .w-bbl time {
+      display: block; font-size: 9.5px; margin-top: 5px; text-align: right;
+    }
+    .w-row.bot .w-bbl time { color: rgba(23,56,50,0.45); }
+    .w-row.user .w-bbl time { color: rgba(255,255,255,0.7); }
+
+    /* Typing dots */
+    .w-typing { display: flex; gap: 4px; padding: 4px 2px; }
+    .w-typing span { width: 7px; height: 7px; background: #7bb06b; border-radius: 50%; animation: wDot 1.2s infinite ease-in-out both; }
+    .w-typing span:nth-child(1) { animation-delay: -0.32s; }
+    .w-typing span:nth-child(2) { animation-delay: -0.16s; }
+    @keyframes wDot { 0%,80%,100% { transform: scale(0.5); } 40% { transform: scale(1); } }
+
+    /* ── Input Bar ── */
+    .w-input-wrap {
+      padding: 10px 12px 12px;
+      background: #fff; border-top: 1px solid rgba(0,0,0,0.06);
+      flex-shrink: 0;
+    }
+    .w-input-row {
+      display: flex; align-items: center; gap: 9px;
+      background: #f4f7f6;
+      border: 1.5px solid rgba(27,102,86,0.16);
+      border-radius: 28px;
+      padding: 6px 6px 6px 14px;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .w-input-row:focus-within { border-color: #1b6656; box-shadow: 0 0 0 3px rgba(27,102,86,0.12); }
+
+    #w-input {
+      flex: 1; background: none; border: none; outline: none;
+      font-family: inherit; font-size: 13px; color: #1d4354;
+      resize: none; max-height: 72px; line-height: 1.45;
+    }
+    #w-input::placeholder { color: #9bb1ab; }
+
+    #w-send {
+      width: 36px; height: 36px; flex-shrink: 0;
+      background: linear-gradient(145deg, #7bb06b, #1b6656);
+      border: none; border-radius: 50%;
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 3px 9px rgba(27,102,86,0.35);
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    #w-send:hover:not(:disabled) { transform: scale(1.08); box-shadow: 0 5px 12px rgba(27,102,86,0.45); }
+    #w-send:active:not(:disabled) { transform: scale(0.95); }
+    #w-send:disabled { opacity: 0.35; cursor: not-allowed; filter: grayscale(0.4); }
+    #w-send svg { width: 16px; height: 16px; fill: #fff; margin-left: 2px; }
+
+    .w-footer { text-align: center; font-size: 10px; color: #a4b3b0; margin-top: 6px; }
+    .w-footer a { color: #1b6656; text-decoration: none; font-weight: 600; }
+
+    @media (max-width: 450px) {
+      #chat-window { width: calc(100vw - 20px); right: 10px; bottom: 86px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ══════════════════════════════
+     WIDGET ONLY — embed anywhere
+══════════════════════════════ -->
+
+<!-- Chat Window -->
+<div id="chat-window">
+
+  <div class="w-header">
+    <div class="w-header-top">
+      <div class="w-av-wrap">
+        <img class="w-av" src="/robot_avatar.png?v=2" alt="Sidekick AI"/>
+        <div class="w-dot"></div>
+      </div>
+      <div class="w-hdr-info">
+        <h3>Sidekick AI Assistant</h3>
+        <p>Tax · Accounting · Legal · Islamabad</p>
+      </div>
+      <button class="w-close" id="w-close-btn" title="Close chat">×</button>
+    </div>
+  </div>
+
+  <div class="w-chips" id="w-chips">
+    <div class="w-chip" onclick="sendChip('What accounting ERPs do you support?')">💻 ERPs</div>
+    <div class="w-chip" onclick="sendChip('I need FBR tax help')">📄 FBR Tax</div>
+    <div class="w-chip" onclick="sendChip('How do I register my company in Pakistan?')">🏢 Register Co.</div>
+    <div class="w-chip" onclick="sendChip('Tell me about staff augmentation services')">👔 Virtual CFO</div>
+  </div>
+
+  <div id="w-msgs">
+    <div class="w-row bot">
+      <img class="w-av-sm" src="/robot_avatar.png?v=2" alt="bot"/>
+      <div class="w-bbl">
+        <p>👋 <strong>Welcome to Sidekick!</strong></p>
+        <p>I am <strong>Sidekick's</strong> AI Business Advisor. We assist companies across Pakistan with <strong>FBR Tax Compliance</strong>, <strong>SECP Company Registration</strong>, <strong>Accounting & ERPs</strong>, and <strong>Virtual CFO Services</strong>.</p>
+        <p style="margin-top:6px; color:#1b6656; font-size:12.5px; font-weight:500;">How may Sidekick assist you today?</p>
+        <time>Now</time>
+      </div>
+    </div>
+  </div>
+
+  <div class="w-input-wrap">
+    <div class="w-input-row">
+      <textarea id="w-input" rows="1" placeholder="Type your question…"></textarea>
+      <button id="w-send" disabled>
+        <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+      </button>
+    </div>
+    <div class="w-footer">Powered by <a href="https://sidekick.pk" target="_blank">sidekick.pk</a></div>
+  </div>
+</div>
+
+<!-- Floating Launcher Button -->
+<div id="chat-launcher">
+  <img src="/robot_avatar.png?v=2" alt="Chat with Sidekick"/>
+  <div class="launcher-badge">1</div>
+  <div class="launcher-tooltip">Chat with Sidekick AI 💬</div>
+</div>
+
+<script>
+  const API  = 'http://127.0.0.1:5000';
+  const msgs = document.getElementById('w-msgs');
+  const inp  = document.getElementById('w-input');
+  const btn  = document.getElementById('w-send');
+  const win  = document.getElementById('chat-window');
+  const launcher = document.getElementById('chat-launcher');
+  const badge    = launcher.querySelector('.launcher-badge');
+  let sid = null, busy = false, isOpen = false;
+
+  async function init() {
+    try {
+      const r = await fetch(API + '/api/session', { method: 'POST' });
+      sid = (await r.json()).session_id;
+    } catch { addBot('⚠️ Cannot connect to server on port 5000.'); }
+  }
+
+  function scrollToBottom(smooth = true) {
+    requestAnimationFrame(() => {
+      if (smooth) {
+        msgs.scrollTo({ top: msgs.scrollHeight, behavior: 'smooth' });
+      } else {
+        msgs.scrollTop = msgs.scrollHeight;
+      }
+    });
+  }
+
+  function toggle() {
+    isOpen = !isOpen;
+    win.classList.toggle('open', isOpen);
+    if (isOpen) {
+      badge.style.display = 'none';
+      setTimeout(() => scrollToBottom(false), 150);
+      setTimeout(() => inp.focus(), 220);
+    }
+  }
+  launcher.addEventListener('click', toggle);
+  document.getElementById('w-close-btn').addEventListener('click', toggle);
+
+  function ts() { return new Date().toLocaleTimeString('en-PK',{hour:'2-digit',minute:'2-digit'}); }
+  function esc(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>'); }
+
+  function addUser(t) {
+    const r = document.createElement('div'); r.className = 'w-row user';
+    r.innerHTML = `<div class="w-av-sm user-av">👤</div><div class="w-bbl">${esc(t)}<time>${ts()}</time></div>`;
+    msgs.appendChild(r);
+    scrollToBottom(true);
+  }
+
+  function addBot(t) {
+    const r = document.createElement('div'); r.className = 'w-row bot';
+    r.innerHTML = `<img class="w-av-sm" src="/robot_avatar.png?v=2" alt="bot"/><div class="w-bbl">${marked.parse(t)}<time>${ts()}</time></div>`;
+    msgs.appendChild(r);
+    scrollToBottom(true);
+  }
+
+  function showTyping() {
+    const r = document.createElement('div'); r.id = 'w-typing'; r.className = 'w-row bot';
+    r.innerHTML = `<img class="w-av-sm" src="/robot_avatar.png?v=2" alt="bot"/><div class="w-bbl"><div class="w-typing"><span></span><span></span><span></span></div></div>`;
+    msgs.appendChild(r);
+    scrollToBottom(true);
+  }
+  function hideTyping() { const t = document.getElementById('w-typing'); if(t) t.remove(); }
+
+  async function send(text) {
+    text = text.trim();
+    if (!text || busy || !sid) return;
+    busy = true; btn.disabled = true;
+
+    // Hide suggestions chips so messages have max vertical room
+    const c = document.getElementById('w-chips');
+    if (c) c.style.display = 'none';
+
+    addUser(text);
+    inp.value = '';
+    inp.style.height = 'auto';
+    showTyping();
+
+    const row = document.createElement('div'); row.className = 'w-row bot';
+    const av  = document.createElement('img'); av.className='w-av-sm'; av.src='/robot_avatar.png?v=2'; av.alt='bot';
+    const bbl = document.createElement('div'); bbl.className='w-bbl';
+    row.appendChild(av); row.appendChild(bbl);
+    let raw = '';
+
+    try {
+      const res = await fetch(API + '/api/chat', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ session_id: sid, message: text })
+      });
+      hideTyping();
+      if (!res.ok) { addBot('⚠️ Server error occurred.'); busy=false; btn.disabled=!inp.value.trim(); return; }
+      msgs.appendChild(row);
+
+      const reader = res.body.getReader(), dec = new TextDecoder('utf-8');
+      while (true) {
+        const {value, done} = await reader.read();
+        if (done) break;
+        const lines = dec.decode(value, {stream:true}).split('\n');
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          const d = line.slice(6).trim(); if (!d) continue;
+          try {
+            const p = JSON.parse(d);
+            if (p.chunk) raw += p.chunk;
+            else if (p.error) raw += `\n\n> ⚠️ **Notice:** ${p.error}`;
+            bbl.innerHTML = marked.parse(raw) + `<time>${ts()}</time>`;
+            scrollToBottom(false);
+          } catch(_) {}
+        }
+      }
+      scrollToBottom(true);
+    } catch {
+      hideTyping();
+      addBot('⚠️ Network error. Please check connection.');
+    }
+    busy = false;
+    btn.disabled = !inp.value.trim();
+    inp.focus();
+  }
+
+  function sendChip(t) {
+    if (busy) return;
+    const c = document.getElementById('w-chips'); if(c) c.style.display='none';
+    if (!isOpen) toggle();
+    send(t);
+  }
+
+  inp.addEventListener('input', () => {
+    inp.style.height='auto'; inp.style.height=Math.min(inp.scrollHeight,72)+'px';
+    btn.disabled = !inp.value.trim() || busy;
+  });
+  inp.addEventListener('keydown', e => { if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send(inp.value);} });
+  btn.addEventListener('click', ()=>send(inp.value));
+
+  init();
+</script>
+</body>
+</html>

@@ -1,0 +1,22 @@
+# Virtual Environment
+venv/
+env/
+ENV/
+
+# Environment secrets
+.env
+
+# Python Cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Temporary/Scratch files
+scratch/
+*.log
+
+# Database journal files (optional, we keep sidekick_chat.db if we want starter schema)
+*.db-journal
+*.db-wal
+*.db-shm

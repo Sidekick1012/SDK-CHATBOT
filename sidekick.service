@@ -1,0 +1,19 @@
+[Unit]
+Description=Sidekick AI Chatbot & Lead Management Service
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/var/www/Sidekick-Custom-ChatBot
+EnvironmentFile=/var/www/Sidekick-Custom-ChatBot/.env
+ExecStart=/var/www/Sidekick-Custom-ChatBot/venv/bin/python app.py
+Restart=always
+RestartSec=5
+
+# Hardening / Security
+ProtectSystem=full
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,738 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sidekick | Customer Leads Manager</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --teal: #1b6656;
+      --teal-dark: #12453a;
+      --teal-light: #eaf4f0;
+      --navy: #1d4354;
+      --green: #7bb06b;
+      --bg: #f3f7f5;
+      --card-bg: #ffffff;
+      --text: #1a2e2b;
+      --muted: #64748b;
+      --border: rgba(27, 102, 86, 0.12);
+      --radius: 16px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex; flex-direction: column;
+    }
+
+    /* â”€â”€ Login Screen â”€â”€ */
+    #login-screen {
+      flex: 1; display: flex; align-items: center; justify-content: center;
+      padding: 24px;
+    }
+    .login-card {
+      background: #fff; width: min(420px, 100%);
+      border-radius: 22px; padding: 36px 32px;
+      box-shadow: 0 20px 50px rgba(27, 102, 86, 0.12), 0 4px 16px rgba(0,0,0,0.04);
+      border: 1px solid var(--border); text-align: center;
+      animation: popIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    @keyframes popIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+
+    .login-av {
+      width: 72px; height: 72px; border-radius: 50%;
+      border: 3px solid rgba(123, 176, 107, 0.8);
+      box-shadow: 0 4px 14px rgba(0,0,0,0.12);
+      margin: 0 auto 16px; display: block; object-fit: cover;
+    }
+    .login-card h2 { font-size: 20px; font-weight: 800; color: var(--navy); }
+    .login-card p { font-size: 13px; color: var(--muted); margin-top: 4px; margin-bottom: 24px; }
+
+    .form-group { text-align: left; margin-bottom: 16px; }
+    .form-group label { display: block; font-size: 12px; font-weight: 700; color: var(--navy); margin-bottom: 6px; }
+    .form-group input {
+      width: 100%; padding: 11px 14px; border-radius: 10px;
+      border: 1.5px solid rgba(27, 102, 86, 0.2); font-size: 13.5px;
+      outline: none; font-family: inherit; transition: border-color 0.2s;
+    }
+    .form-group input:focus { border-color: var(--teal); box-shadow: 0 0 0 3px rgba(27,102,86,0.1); }
+
+    .btn-login {
+      width: 100%; padding: 12px; border-radius: 12px; font-size: 14px; font-weight: 700;
+      background: linear-gradient(135deg, #1b6656, #1d4354); color: #fff;
+      border: none; cursor: pointer; transition: all 0.2s; margin-top: 8px;
+      box-shadow: 0 4px 12px rgba(27, 102, 86, 0.3);
+    }
+    .btn-login:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(27, 102, 86, 0.4); }
+
+    .login-error {
+      background: #fef2f2; border: 1px solid #fecaca; color: #b91c1c;
+      padding: 10px; border-radius: 8px; font-size: 12px; margin-bottom: 16px;
+      display: none;
+    }
+
+    /* â”€â”€ Dashboard Screen â”€â”€ */
+    #dashboard-screen {
+      display: none; flex-direction: column; flex: 1;
+    }
+
+    header {
+      background: linear-gradient(135deg, #1d4354 0%, #1b6656 100%);
+      color: #fff; padding: 16px 28px;
+      display: flex; align-items: center; justify-content: space-between;
+      box-shadow: 0 4px 20px rgba(27, 102, 86, 0.15);
+      position: sticky; top: 0; z-index: 100;
+      will-change: transform;
+      transition: box-shadow 0.3s ease;
+    }
+    .brand-wrap { display: flex; align-items: center; gap: 12px; }
+    .brand-av {
+      width: 42px; height: 42px; border-radius: 50%;
+      border: 2px solid rgba(123, 176, 107, 0.8);
+      object-fit: cover; background: #fff;
+    }
+    .brand-info h1 { font-size: 17px; font-weight: 800; letter-spacing: -0.2px; }
+    .brand-info p { font-size: 11.5px; color: rgba(255,255,255,0.75); }
+
+    .nav-actions { display: flex; align-items: center; gap: 10px; }
+    .btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 8px 14px; border-radius: 9px; font-size: 12.5px; font-weight: 600;
+      text-decoration: none; cursor: pointer; transition: all 0.2s ease; border: none;
+    }
+    .btn-white { background: #fff; color: var(--teal-dark); }
+    .btn-white:hover { background: #f0f7f4; }
+    .btn-teal { background: var(--green); color: #0f2b23; font-weight: 700; }
+    .btn-teal:hover { background: #8ec37e; }
+    .btn-logout { background: rgba(255,255,255,0.14); color: #fff; border: 1px solid rgba(255,255,255,0.2); }
+    .btn-logout:hover { background: rgba(255,255,255,0.25); }
+
+    main {
+      max-width: 1180px; width: 100%; margin: 24px auto; padding: 0 20px;
+      flex: 1; display: flex; flex-direction: column; gap: 20px;
+    }
+
+    /* â”€â”€ Single Summary Card â”€â”€ */
+    .summary-bar {
+      background: #fff; border-radius: var(--radius);
+      padding: 18px 24px; border: 1px solid var(--border);
+      box-shadow: 0 4px 16px rgba(0,0,0,0.05);
+      display: flex; align-items: center; justify-content: space-between;
+      flex-wrap: wrap; gap: 14px;
+      position: sticky; top: 74px; z-index: 90;
+      will-change: transform;
+      transition: box-shadow 0.3s ease;
+    }
+    .summary-left { display: flex; align-items: center; gap: 14px; }
+    .summary-icon {
+      width: 46px; height: 46px; border-radius: 12px;
+      background: var(--teal-light); display: flex; align-items: center; justify-content: center;
+      font-size: 24px;
+    }
+    .summary-text h3 { font-size: 22px; font-weight: 800; color: var(--navy); line-height: 1.1; }
+    .summary-text p { font-size: 12px; color: var(--muted); font-weight: 600; margin-top: 3px; }
+
+    .filter-controls {
+      display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    }
+    .date-presets {
+      display: flex; gap: 4px; background: #eef4f1; padding: 3px; border-radius: 10px;
+    }
+    .preset-btn {
+      padding: 6px 12px; border-radius: 7px; font-size: 12px; font-weight: 700;
+      border: none; background: transparent; color: var(--muted); cursor: pointer;
+      transition: all 0.15s;
+    }
+    .preset-btn:hover { color: var(--teal-dark); }
+    .preset-btn.active {
+      background: #fff; color: var(--teal-dark); box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    }
+    .date-range-wrap {
+      display: flex; align-items: center; gap: 6px; background: #fff;
+      border: 1.5px solid rgba(27,102,86,0.2); border-radius: 10px; padding: 4px 10px;
+    }
+    .date-lbl { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; }
+    .date-range-wrap input[type="date"] {
+      border: none; outline: none; font-family: inherit; font-size: 12px; color: var(--navy);
+      background: transparent; cursor: pointer;
+    }
+    .btn-clear-date {
+      background: rgba(0,0,0,0.06); border: none; border-radius: 50%; width: 20px; height: 20px;
+      font-size: 11px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+      color: var(--muted); margin-left: 2px; transition: background 0.15s;
+    }
+    .btn-clear-date:hover { background: #fee2e2; color: #dc2626; }
+
+    .search-box { position: relative; width: 240px; }
+    .search-box input {
+      width: 100%; padding: 8px 14px 8px 34px; border-radius: 10px;
+      border: 1.5px solid rgba(27,102,86,0.2); font-size: 12.5px;
+      outline: none; font-family: inherit; transition: border-color 0.2s;
+    }
+    .search-box input:focus { border-color: var(--teal); }
+    .search-icon { position: absolute; left: 11px; top: 9px; font-size: 13px; opacity: 0.5; }
+
+    /* â”€â”€ Leads Table â”€â”€ */
+    .table-card {
+      background: var(--card-bg); border-radius: var(--radius);
+      border: 1px solid var(--border); box-shadow: 0 4px 18px rgba(0,0,0,0.03);
+      overflow: hidden;
+    }
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; text-align: left; font-size: 13.5px; }
+    th {
+      background: #f7faf8; color: var(--muted); font-weight: 700;
+      padding: 14px 20px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.4px;
+      border-bottom: 1px solid var(--border);
+    }
+    td { padding: 16px 20px; border-bottom: 1px solid rgba(0,0,0,0.04); vertical-align: middle; }
+    tr:hover td { background: #fbfdfc; }
+
+    .contact-phone {
+      font-size: 14px; font-weight: 700; color: #1b6656; letter-spacing: 0.3px;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .tag {
+      display: inline-block; padding: 4px 10px; border-radius: 20px;
+      font-size: 11.5px; font-weight: 600; background: var(--teal-light); color: var(--teal-dark);
+    }
+
+    .action-group { display: flex; align-items: center; gap: 8px; }
+    .btn-sm {
+      padding: 6px 12px; border-radius: 8px; font-size: 12px; font-weight: 600;
+      cursor: pointer; text-decoration: none; border: none; transition: all 0.15s;
+      display: inline-flex; align-items: center; gap: 4px;
+    }
+    .btn-wa { background: #25d366; color: #fff; }
+    .btn-wa:hover { background: #1eb956; }
+    .btn-view { background: #e2e8f0; color: #334155; }
+    .btn-view:hover { background: var(--teal); color: #fff; }
+
+    .empty-state { padding: 50px 20px; text-align: center; color: var(--muted); }
+    .empty-state span { font-size: 40px; display: block; margin-bottom: 10px; }
+
+    /* â”€â”€ Modal / Transcript Drawer â”€â”€ */
+    .modal-overlay {
+      position: fixed; inset: 0; background: rgba(15, 30, 26, 0.6);
+      backdrop-filter: blur(4px); z-index: 1000;
+      display: none; align-items: center; justify-content: center;
+      padding: 20px;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal-card {
+      background: #fff; border-radius: 20px; width: min(620px, 100%);
+      max-height: 85vh; display: flex; flex-direction: column;
+      box-shadow: 0 24px 70px rgba(0,0,0,0.3); overflow: hidden;
+      animation: popIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .modal-header {
+      background: linear-gradient(135deg, #1d4354, #1b6656);
+      color: #fff; padding: 18px 22px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .modal-header h3 { font-size: 16px; font-weight: 700; }
+    .modal-header p { font-size: 12px; color: rgba(255,255,255,0.7); margin-top: 2px; }
+    .modal-close {
+      background: rgba(255,255,255,0.15); border: none; color: #fff;
+      width: 32px; height: 32px; border-radius: 50%; font-size: 18px;
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+    }
+    .modal-close:hover { background: rgba(255,255,255,0.3); }
+
+    .modal-body {
+      padding: 20px; overflow-y: auto; flex: 1;
+      display: flex; flex-direction: column; gap: 14px;
+      background: #fcfdfd;
+    }
+    .modal-bubble { display: flex; gap: 10px; max-width: 85%; }
+    .modal-bubble.user { align-self: flex-end; flex-direction: row-reverse; }
+    .modal-bubble.bot { align-self: flex-start; }
+    .bbl-content { padding: 10px 14px; border-radius: 16px; font-size: 13px; line-height: 1.5; }
+    .modal-bubble.user .bbl-content {
+      background: linear-gradient(135deg, #1b6656, #1d4354); color: #fff;
+      border-bottom-right-radius: 4px;
+    }
+    .modal-bubble.bot .bbl-content {
+      background: #f1f6f4; color: #1d4354; border: 1px solid rgba(27,102,86,0.12);
+      border-bottom-left-radius: 4px;
+    }
+    .bbl-time { font-size: 10px; opacity: 0.6; display: block; margin-top: 4px; text-align: right; }
+
+    .modal-footer {
+      padding: 14px 20px; background: #f8faf9; border-top: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+
+    footer { text-align: center; padding: 24px; font-size: 12px; color: var(--muted); }
+  </style>
+</head>
+<body>
+
+  <!-- 1. LOGIN SCREEN -->
+  <div id="login-screen">
+    <div class="login-card">
+      <img class="login-av" src="/robot_avatar.png?v=2" alt="Sidekick Robot">
+      <h2>Sidekick Admin</h2>
+      <p>Sign in to view and manage customer leads</p>
+
+      <div class="login-error" id="login-error-msg">Invalid username or password</div>
+
+      <form id="login-form" onsubmit="handleLogin(event)">
+        <div class="form-group">
+          <label>Username</label>
+          <input type="text" id="login-user" placeholder="admin" required autofocus>
+        </div>
+        <div class="form-group">
+          <label>Password</label>
+          <input type="password" id="login-pass" placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢" required>
+        </div>
+        <button type="submit" class="btn-login" id="login-btn">Sign In to Leads</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- 2. DASHBOARD SCREEN (ONLY LEADS) -->
+  <div id="dashboard-screen">
+    <header>
+      <div class="brand-wrap">
+        <img class="brand-av" src="/robot_avatar.png?v=2" alt="Sidekick AI">
+        <div class="brand-info">
+          <h1>Sidekick Leads Manager</h1>
+          <p>Customer Leads Intelligence &bull; Islamabad</p>
+        </div>
+      </div>
+      <div class="nav-actions">
+        <span style="font-size:11.5px;color:rgba(255,255,255,0.6);margin-right:4px;">Auto-refresh in <span id="countdown">30</span>s</span>
+        <button class="btn btn-white" onclick="manualRefresh()">&#x1F504; Refresh</button>
+        <a class="btn btn-teal" href="/api/admin/export-csv" target="_blank">&#x1F4E5; Export CSV</a>
+        <a class="btn btn-white" href="/" target="_blank">&#x1F4AC; Open Chat</a>
+        <button class="btn btn-logout" onclick="handleLogout()">&#x1F6AA; Logout</button>
+      </div>
+    </header>
+
+    <main>
+      <!-- Summary / Search & Date Filter Bar -->
+      <div class="summary-bar">
+        <div class="summary-left">
+          <div class="summary-icon">&#x1F3AF;</div>
+          <div class="summary-text">
+            <h3><span id="val-leads-count">0</span> Leads Captured</h3>
+            <p id="filter-label">Ready for WhatsApp &amp; Phone Follow-up</p>
+          </div>
+        </div>
+
+        <!-- Filter Controls: Date & Search -->
+        <div class="filter-controls">
+          <!-- Quick Date Presets -->
+          <div class="date-presets">
+            <button class="preset-btn active" data-preset="today" onclick="setPreset('today')">Today</button>
+            <button class="preset-btn" data-preset="7d" onclick="setPreset('7d')">Last 7 Days</button>
+            <button class="preset-btn" data-preset="30d" onclick="setPreset('30d')">This Month</button>
+            <button class="preset-btn" data-preset="all" onclick="setPreset('all')">All Time</button>
+          </div>
+
+          <!-- Date Range Pickers -->
+          <div class="date-range-wrap">
+            <span class="date-lbl">From</span>
+            <input type="date" id="date-from" onchange="fetchLeads()">
+            <span class="date-lbl">To</span>
+            <input type="date" id="date-to" onchange="fetchLeads()">
+            <button class="btn-clear-date" onclick="clearDateFilter()" title="Clear date filter">&#x2715;</button>
+          </div>
+
+          <!-- Search Box -->
+          <div class="search-box">
+            <span class="search-icon">&#x1F50D;</span>
+            <input type="text" id="search-input" placeholder="Search phone, name, or service..." oninput="applyFilters()">
+          </div>
+        </div>
+      </div>
+
+      <!-- Pure Leads Table -->
+      <div class="table-card">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Lead ID</th>
+                <th>Contact Details</th>
+                <th>Visitor Name</th>
+                <th>Service Interest</th>
+                <th>Date Captured</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="leads-tbody">
+              <tr><td colspan="6" class="empty-state">Loading customer leads...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </main>
+
+    <!-- Chat Transcript Modal -->
+    <div class="modal-overlay" id="transcript-modal" onclick="closeModal(event)">
+      <div class="modal-card" onclick="event.stopPropagation()">
+        <div class="modal-header">
+          <div>
+            <h3 id="modal-title">Lead Conversation History</h3>
+            <p id="modal-subtitle">Full Transcript</p>
+          </div>
+          <button class="modal-close" onclick="closeModal()">&times;</button>
+        </div>
+
+        <div class="modal-body" id="modal-messages"></div>
+
+        <div class="modal-footer">
+          <div id="modal-contact-badge" style="font-weight: 700; font-size: 13.5px; color: #1b6656;"></div>
+          <div id="modal-quick-action"></div>
+        </div>
+      </div>
+    </div>
+
+    <footer>
+      Sidekick Venture Private Limited &bull; 1st Floor, Randhawa Plaza, Blue Area, Islamabad &bull; Customer Leads Portal
+    </footer>
+  </div>
+
+  <script>
+    let allLeads = [];
+    let refreshTimer = null;
+    let countdownTimer = null;
+    let countdownVal = 60;
+
+    // Check auth on page load
+    async function checkAuth() {
+      try {
+        const res = await fetch('/api/admin/check-auth');
+        const data = await res.json();
+        if (data.authenticated) {
+          showDashboard();
+          initTodayFilter();
+          fetchLeads();
+          startAutoRefresh();
+        } else {
+          showLogin();
+        }
+      } catch {
+        showLogin();
+      }
+    }
+
+    function startAutoRefresh() {
+      stopAutoRefresh();
+      countdownVal = 60;
+      countdownTimer = setInterval(() => {
+        countdownVal--;
+        const el = document.getElementById('countdown');
+        if (el) el.textContent = countdownVal;
+        if (countdownVal <= 0) {
+          fetchLeads();
+          countdownVal = 60;
+          if (el) el.textContent = countdownVal;
+        }
+      }, 1000);
+    }
+
+    function stopAutoRefresh() {
+      if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null; }
+    }
+
+    function manualRefresh() {
+      fetchLeads();
+      countdownVal = 60;
+      const el = document.getElementById('countdown');
+      if (el) el.textContent = countdownVal;
+    }
+
+    function initTodayFilter() {
+      const today = new Date();
+      const pad = n => String(n).padStart(2, '0');
+      const todayStr = `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`;
+      const fromInput = document.getElementById('date-from');
+      const toInput = document.getElementById('date-to');
+      if (fromInput && toInput) {
+        fromInput.value = todayStr;
+        toInput.value = todayStr;
+      }
+      activePreset = 'today';
+      document.querySelectorAll('.preset-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.preset === 'today');
+      });
+    }
+
+    function showLogin() {
+      stopAutoRefresh();
+      document.getElementById('login-screen').style.display = 'flex';
+      document.getElementById('dashboard-screen').style.display = 'none';
+    }
+
+    function showDashboard() {
+      document.getElementById('login-screen').style.display = 'none';
+      document.getElementById('dashboard-screen').style.display = 'flex';
+    }
+
+    async function handleLogin(e) {
+      e.preventDefault();
+      const user = document.getElementById('login-user').value.trim();
+      const pass = document.getElementById('login-pass').value.trim();
+      const errBox = document.getElementById('login-error-msg');
+      const btn = document.getElementById('login-btn');
+
+      errBox.style.display = 'none';
+      btn.disabled = true;
+      btn.textContent = 'Signing in...';
+
+      try {
+        const res = await fetch('/api/admin/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: user, password: pass })
+        });
+        const data = await res.json();
+        if (res.ok) {
+          showDashboard();
+          initTodayFilter();
+          fetchLeads();
+          startAutoRefresh();
+        } else {
+          errBox.textContent = data.error || 'Invalid credentials';
+          errBox.style.display = 'block';
+        }
+      } catch {
+        errBox.textContent = 'Connection error. Please try again.';
+        errBox.style.display = 'block';
+      }
+      btn.disabled = false;
+      btn.textContent = 'Sign In to Leads';
+    }
+
+    async function handleLogout() {
+      await fetch('/api/admin/logout', { method: 'POST' });
+      showLogin();
+    }
+
+    async function fetchLeads() {
+      try {
+        // Build URL with server-side date filters
+        const fromVal = document.getElementById('date-from')?.value || '';
+        const toVal   = document.getElementById('date-to')?.value   || '';
+        let url = '/api/admin/leads';
+        const params = [];
+        if (fromVal) params.push(`from=${fromVal}`);
+        if (toVal)   params.push(`to=${toVal}`);
+        if (params.length) url += '?' + params.join('&');
+
+        const res = await fetch(url);
+        if (res.status === 401) { showLogin(); return; }
+        allLeads = await res.json();
+        applyFilters();
+      } catch (err) {
+        console.error('Error fetching leads:', err);
+      }
+    }
+
+    function formatDate(raw) {
+      if (!raw) return '';
+      try {
+        const d = new Date(raw);
+        return d.toLocaleString('en-PK', {
+          year: 'numeric', month: 'short', day: 'numeric',
+          hour: '2-digit', minute: '2-digit', hour12: true
+        });
+      } catch { return raw; }
+    }
+
+    function renderLeads(leads) {
+      const tbody = document.getElementById('leads-tbody');
+      if (!leads.length) {
+        tbody.innerHTML = `<tr><td colspan="6" class="empty-state"><span>&#x1F52D;</span>No customer leads found matching the selected filter.</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = leads.map(l => {
+        let cleanPhone = (l.contact || '').replace(/[^0-9]/g, '');
+        if (cleanPhone.startsWith('03')) cleanPhone = '92' + cleanPhone.slice(1);
+        const isPhone = /^[0-9+]{10,14}$/.test((l.contact || '').replace(/[\s-]/g, ''));
+        const waLink = isPhone ? `https://wa.me/${cleanPhone}?text=Hello%2C+thank+you+for+contacting+Sidekick+Consultancy.+How+may+we+assist+you%3F` : null;
+
+        return `
+          <tr>
+            <td><strong style="color:#64748b;">#${l.id}</strong></td>
+            <td>
+              <div class="contact-phone">
+                ${isPhone ? '&#x1F4DE;' : '&#x2709;&#xFE0F;'} ${l.contact}
+              </div>
+            </td>
+            <td><strong>${l.name || 'Website Visitor'}</strong></td>
+            <td><span class="tag">${l.interest || 'Tax / Accounting / ERP'}</span></td>
+            <td style="color:#64748b; font-size:12.5px;">${formatDate(l.created_at)}</td>
+            <td>
+              <div class="action-group">
+                ${waLink ? `<a href="${waLink}" target="_blank" class="btn-sm btn-wa">&#x1F4AC; WhatsApp</a>` : ''}
+                <button class="btn-sm btn-view" onclick="viewSession('${l.session_id}', '${l.contact}')">&#x1F441; Chat History</button>
+              </div>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    let activePreset = 'today';
+
+    function setPreset(p) {
+      activePreset = p;
+      document.querySelectorAll('.preset-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.preset === p);
+      });
+
+      const today = new Date();
+      const pad = n => String(n).padStart(2, '0');
+      const formatDate = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+
+      const fromInput = document.getElementById('date-from');
+      const toInput = document.getElementById('date-to');
+
+      if (p === 'all') {
+        fromInput.value = '';
+        toInput.value = '';
+      } else if (p === 'today') {
+        const todayStr = formatDate(today);
+        fromInput.value = todayStr;
+        toInput.value = todayStr;
+      } else if (p === '7d') {
+        const past = new Date(today);
+        past.setDate(past.getDate() - 7);
+        fromInput.value = formatDate(past);
+        toInput.value = formatDate(today);
+      } else if (p === '30d') {
+        const past = new Date(today);
+        past.setDate(past.getDate() - 30);
+        fromInput.value = formatDate(past);
+        toInput.value = formatDate(today);
+      }
+      fetchLeads(); // re-fetch from server with new date params
+    }
+
+    function clearDateFilter() {
+      document.getElementById('date-from').value = '';
+      document.getElementById('date-to').value = '';
+      setPreset('all');
+    }
+
+    function applyFilters() {
+      const q = document.getElementById('search-input').value.toLowerCase().trim();
+
+      const filtered = allLeads.filter(l => {
+        return !q || (
+          (l.contact && l.contact.toLowerCase().includes(q)) ||
+          (l.name && l.name.toLowerCase().includes(q)) ||
+          (l.interest && l.interest.toLowerCase().includes(q))
+        );
+      });
+
+      document.getElementById('val-leads-count').textContent = filtered.length;
+
+      // Update label
+      const fromVal = document.getElementById('date-from').value;
+      const toVal   = document.getElementById('date-to').value;
+      let label = 'All Time';
+      if (activePreset === 'today') label = 'Today';
+      else if (activePreset === '7d') label = 'Last 7 Days';
+      else if (activePreset === '30d') label = 'Last 30 Days';
+      else if (fromVal || toVal) label = `${fromVal || '...'} â†’ ${toVal || '...'}`;
+      document.getElementById('filter-label').textContent =
+        `${label} \u00B7 Ready for WhatsApp & Follow-up`;
+
+      renderLeads(filtered);
+    }
+
+    async function viewSession(sessionId, contact) {
+      try {
+        const res = await fetch(`/api/admin/conversation/${sessionId}`);
+        const data = await res.json();
+        
+        document.getElementById('modal-title').textContent = contact ? `Lead Details: ${contact}` : 'Chat Transcript';
+        document.getElementById('modal-subtitle').textContent = `Session ID: ${sessionId}`;
+        
+        const container = document.getElementById('modal-messages');
+        if (!data.messages || !data.messages.length) {
+          container.innerHTML = '<p class="empty-state">No messages found for this lead.</p>';
+        } else {
+          container.innerHTML = data.messages.map(m => {
+            const isUser = m.role === 'user';
+            return `
+              <div class="modal-bubble ${isUser ? 'user' : 'bot'}">
+                <div class="bbl-content">
+                  ${m.message.replace(/\n/g, '<br>')}
+                  <span class="bbl-time">${m.created_at ? formatDate(m.created_at) : ''}</span>
+                </div>
+              </div>
+            `;
+          }).join('');
+        }
+
+        const badge = document.getElementById('modal-contact-badge');
+        const action = document.getElementById('modal-quick-action');
+        if (contact) {
+          let cleanPhone = contact.replace(/[^0-9]/g, '');
+          if (cleanPhone.startsWith('03')) cleanPhone = '92' + cleanPhone.slice(1);
+          badge.innerHTML = `Customer Contact: <strong>${contact}</strong>`;
+          action.innerHTML = `<a href="https://wa.me/${cleanPhone}" target="_blank" class="btn-sm btn-wa">&#x1F4AC; Open in WhatsApp</a>`;
+        } else {
+          badge.textContent = '';
+          action.innerHTML = '';
+        }
+
+        document.getElementById('transcript-modal').classList.add('open');
+      } catch (err) {
+        alert('Failed to load conversation history.');
+      }
+    }
+
+    function closeModal() {
+      document.getElementById('transcript-modal').classList.remove('open');
+    }
+
+    // Run auth check on load
+    checkAuth();
+  </script>
+
+  <!-- Smooth Momentum Scroll -->
+  <script>
+    (function() {
+      let targetY = window.scrollY;
+      let currentY = window.scrollY;
+      let raf = null;
+      const ease = 0.10; // lower = smoother (0.05 - 0.15)
+
+      window.addEventListener('wheel', function(e) {
+        e.preventDefault();
+        targetY += e.deltaY * 0.8;
+        targetY = Math.max(0, Math.min(targetY, document.body.scrollHeight - window.innerHeight));
+        if (!raf) animate();
+      }, { passive: false });
+
+      function animate() {
+        currentY += (targetY - currentY) * ease;
+        if (Math.abs(targetY - currentY) < 0.5) {
+          currentY = targetY;
+          raf = null;
+        } else {
+          raf = requestAnimationFrame(animate);
+        }
+        window.scrollTo(0, currentY);
+      }
+    })();
+  </script>
+
+</body>
+</html>
+

@@ -1,0 +1,41 @@
+# Example Nginx reverse proxy configuration for Sidekick Chatbot
+# Place in /etc/nginx/sites-available/sidekick and symlink to sites-enabled
+
+server {
+    listen 80;
+    server_name chat.sidekick.pk; # Replace with your actual domain
+
+    # Redirect all HTTP traffic to HTTPS
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    server_name chat.sidekick.pk; # Replace with your actual domain
+
+    # SSL Certificate files (e.g. from Let's Encrypt Certbot)
+    # ssl_certificate /etc/letsencrypt/live/chat.sidekick.pk/fullchain.pem;
+    # ssl_certificate_key /etc/letsencrypt/live/chat.sidekick.pk/privkey.pem;
+
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers HIGH:!aNULL:!MD5;
+
+    # Proxy to Waitress
+    location / {
+        proxy_pass http://127.0.0.1:5000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # WebSocket / Long polling support if needed
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        
+        # Timeouts
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
+    }
+}
