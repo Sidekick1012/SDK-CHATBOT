@@ -3,3 +3,4 @@ flask-cors==4.0.1
 google-generativeai==0.8.3
 waitress==3.0.0
 Flask-Limiter==3.8.0
+python-dotenv==1.0.1
