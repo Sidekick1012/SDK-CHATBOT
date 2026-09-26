@@ -200,26 +200,25 @@ def auto_capture_lead(session_id: str, message: str, history: list):
         db = get_db()
         existing = db.execute("SELECT id FROM leads WHERE contact = ?", (contact,)).fetchone()
         if not existing:
-            # Extract intent using Gemini
+            # Fast synchronous insert to avoid PythonAnywhere background thread killing
             interest = "Tax / Accounting / ERP"
-            try:
-                model = genai.GenerativeModel(MODELS_TO_TRY[0])
-                chat_text = "\n".join([f"{t['role']}: {t['message']}" for t in history[-6:]])
-                prompt = f"Based on this chat history, what service is the user asking for? Summarize their interest in 2 to 4 words max (e.g., 'NGO Registration', 'Tax Filing', 'General Inquiry'). No extra text.\nChat:\n{chat_text}"
-                resp = model.generate_content(prompt, request_options={"timeout": 5})
-                if resp.text:
-                    interest = resp.text.strip().replace('"', '')
-                    if len(interest) > 30:
-                        interest = interest[:30] + "..."
-            except Exception as e:
-                app.logger.warning(f"Failed to extract interest: {e}")
+            
+            # Simple keyword matching instead of slow Gemini API
+            msg_lower = message.lower()
+            if "tax" in msg_lower: interest = "Tax Consultancy"
+            elif "erp" in msg_lower or "software" in msg_lower: interest = "ERP & Accounting Software"
+            elif "register" in msg_lower or "company" in msg_lower: interest = "Company Registration"
+            elif "bookkeeping" in msg_lower or "accounts" in msg_lower: interest = "Bookkeeping Services"
 
-            db.execute(
-                "INSERT INTO leads (session_id, name, business_name, contact, interest, created_at) "
-                "VALUES (?, ?, ?, ?, ?, ?)",
-                (session_id, "Website Visitor", "Inquiry via Chat", contact, interest, datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"))
-            )
-            db.commit()
+            try:
+                db.execute(
+                    "INSERT INTO leads (session_id, name, business_name, contact, interest, created_at) "
+                    "VALUES (?, ?, ?, ?, ?, ?)",
+                    (session_id, "Website Visitor", "Inquiry via Chat", contact, interest, datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"))
+                )
+                db.commit()
+            except Exception as e:
+                app.logger.error(f"Error saving lead: {e}")
 
 
 def backfill_leads():
@@ -350,12 +349,8 @@ def chat():
     save_message(session_id, "user", user_message)
     history = get_history(session_id, limit=20)
     
-    # Run auto capture lead in a background thread to prevent blocking
-    threading.Thread(
-        target=auto_capture_lead,
-        args=(session_id, user_message, history),
-        daemon=True
-    ).start()
+    # Run auto capture lead synchronously to ensure it saves before the request closes
+    auto_capture_lead(session_id, user_message, history)
 
     from flask import Response, stream_with_context
     import json
