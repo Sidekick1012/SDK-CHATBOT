@@ -58,7 +58,8 @@ genai.configure(api_key=API_KEYS[0])
 MODELS_TO_TRY = ["gemini-3.6-flash", "gemini-3.5-flash-lite", "gemini-3.5-flash", "gemini-2.5-flash-lite"]
 MODEL_NAME = MODELS_TO_TRY[0]  # default primary ultra-fast model
 
-DB_PATH = os.environ.get("DB_PATH", "sidekick_chat.db")
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_PATH = os.environ.get("DB_PATH", os.path.join(BASE_DIR, "sidekick_chat.db"))
 
 RATE_LIMIT_WINDOW_SECONDS = 60
 RATE_LIMIT_MAX_REQUESTS = 15  # per session per window
