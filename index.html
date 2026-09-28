@@ -352,7 +352,7 @@
 </div>
 
 <script>
-  const API  = 'http://127.0.0.1:5000';
+  const API  = window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost' ? 'http://127.0.0.1:5000' : '';
   const msgs = document.getElementById('w-msgs');
   const inp  = document.getElementById('w-input');
   const btn  = document.getElementById('w-send');
