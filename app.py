@@ -197,36 +197,40 @@ def auto_capture_lead(session_id: str, message: str, history: list):
     if not contact:
         return
 
-    with app.app_context():
-        db = get_db()
-        existing = db.execute("SELECT id FROM leads WHERE contact = ?", (contact,)).fetchone()
-        
-        # Fast synchronous insert/update to avoid PythonAnywhere background thread killing
-        interest = "Tax / Accounting / ERP"
-        
-        # Simple keyword matching instead of slow Gemini API
-        msg_lower = message.lower()
-        if "tax" in msg_lower: interest = "Tax Consultancy"
-        elif "erp" in msg_lower or "software" in msg_lower: interest = "ERP & Accounting Software"
-        elif "register" in msg_lower or "company" in msg_lower: interest = "Company Registration"
-        elif "bookkeeping" in msg_lower or "accounts" in msg_lower: interest = "Bookkeeping Services"
+    # Simple keyword matching instead of slow Gemini API
+    interest = "Tax / Accounting / ERP"
+    msg_lower = message.lower()
+    if "tax" in msg_lower: interest = "Tax Consultancy"
+    elif "erp" in msg_lower or "software" in msg_lower: interest = "ERP & Accounting Software"
+    elif "register" in msg_lower or "company" in msg_lower: interest = "Company Registration"
+    elif "bookkeeping" in msg_lower or "accounts" in msg_lower: interest = "Bookkeeping Services"
 
-        try:
-            if existing:
-                # Update timestamp if they message again
-                db.execute(
-                    "UPDATE leads SET created_at = ?, interest = ? WHERE id = ?",
-                    (datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"), interest, existing['id'])
-                )
-            else:
-                db.execute(
-                    "INSERT INTO leads (session_id, name, business_name, contact, interest, created_at) "
-                    "VALUES (?, ?, ?, ?, ?, ?)",
-                    (session_id, "Website Visitor", "Inquiry via Chat", contact, interest, datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"))
-                )
-            db.commit()
-        except Exception as e:
-            app.logger.error(f"Error saving lead: {e}")
+    # Use a direct sqlite3 connection (NOT get_db/g) so this works inside
+    # an active Flask request context without creating a nested app_context
+    # that Flask tears down (and closes) before the commit completes.
+    try:
+        conn = sqlite3.connect(DB_PATH, timeout=30)
+        conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA journal_mode=WAL;")
+        conn.execute("PRAGMA synchronous=NORMAL;")
+        existing = conn.execute("SELECT id FROM leads WHERE contact = ?", (contact,)).fetchone()
+        now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+        if existing:
+            conn.execute(
+                "UPDATE leads SET created_at = ?, interest = ? WHERE id = ?",
+                (now_str, interest, existing['id'])
+            )
+        else:
+            conn.execute(
+                "INSERT INTO leads (session_id, name, business_name, contact, interest, created_at) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
+                (session_id, "Website Visitor", "Inquiry via Chat", contact, interest, now_str)
+            )
+        conn.commit()
+        conn.close()
+        app.logger.info(f"Lead saved/updated: {contact}")
+    except Exception as e:
+        app.logger.error(f"Error saving lead: {e}")
 
 
 def backfill_leads():
