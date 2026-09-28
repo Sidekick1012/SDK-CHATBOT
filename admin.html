@@ -214,6 +214,8 @@
     .btn-wa:hover { background: #1eb956; }
     .btn-view { background: #e2e8f0; color: #334155; }
     .btn-view:hover { background: var(--teal); color: #fff; }
+    .btn-edit { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
+    .btn-edit:hover { background: #2563eb; color: #fff; border-color: #2563eb; }
 
     .empty-state { padding: 50px 20px; text-align: center; color: var(--muted); }
     .empty-state span { font-size: 40px; display: block; margin-bottom: 10px; }
@@ -397,6 +399,46 @@
       </div>
     </div>
 
+    <!-- Edit Lead Modal -->
+    <div class="modal-overlay" id="edit-lead-modal" onclick="closeEditModal(event)">
+      <div class="modal-card" style="width: min(520px, 100%);" onclick="event.stopPropagation()">
+        <div class="modal-header">
+          <div>
+            <h3 id="edit-modal-title">Edit Lead Details</h3>
+            <p id="edit-modal-subtitle">Update visitor name, phone, or service inquiry</p>
+          </div>
+          <button class="modal-close" onclick="closeEditModal()">&times;</button>
+        </div>
+
+        <form id="edit-lead-form" onsubmit="saveLeadEdit(event)">
+          <input type="hidden" id="edit-lead-id">
+          <div style="padding: 22px; display: flex; flex-direction: column; gap: 16px;">
+            <div>
+              <label style="display:block; font-size: 12.5px; font-weight: 700; color: #334155; margin-bottom: 6px;">Customer / Visitor Name</label>
+              <input type="text" id="edit-lead-name" placeholder="e.g. Aqib Walayat" required style="width: 100%; padding: 11px 14px; border: 1.5px solid var(--border); border-radius: 10px; font-size: 13.5px; box-sizing: border-box; outline: none; font-family: inherit;">
+            </div>
+            <div>
+              <label style="display:block; font-size: 12.5px; font-weight: 700; color: #334155; margin-bottom: 6px;">Phone Number / Email</label>
+              <input type="text" id="edit-lead-contact" placeholder="e.g. 03001234567" required style="width: 100%; padding: 11px 14px; border: 1.5px solid var(--border); border-radius: 10px; font-size: 13.5px; box-sizing: border-box; outline: none; font-family: inherit;">
+            </div>
+            <div>
+              <label style="display:block; font-size: 12.5px; font-weight: 700; color: #334155; margin-bottom: 6px;">Business Name / Notes</label>
+              <input type="text" id="edit-lead-business" placeholder="e.g. Inquiry via Chat / Alpha Traders" style="width: 100%; padding: 11px 14px; border: 1.5px solid var(--border); border-radius: 10px; font-size: 13.5px; box-sizing: border-box; outline: none; font-family: inherit;">
+            </div>
+            <div>
+              <label style="display:block; font-size: 12.5px; font-weight: 700; color: #334155; margin-bottom: 6px;">Service Interest</label>
+              <input type="text" id="edit-lead-interest" placeholder="e.g. Tax Consultancy" style="width: 100%; padding: 11px 14px; border: 1.5px solid var(--border); border-radius: 10px; font-size: 13.5px; box-sizing: border-box; outline: none; font-family: inherit;">
+            </div>
+          </div>
+
+          <div class="modal-footer" style="justify-content: flex-end; gap: 10px;">
+            <button type="button" class="btn btn-white" onclick="closeEditModal()" style="color: #475569; border: 1px solid var(--border);">Cancel</button>
+            <button type="submit" class="btn btn-teal" id="edit-save-btn">&#x1F4BE; Save Changes</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
     <footer>
       Sidekick Venture Private Limited &bull; 1st Floor, Randhawa Plaza, Blue Area, Islamabad &bull; Customer Leads Portal
     </footer>
@@ -576,6 +618,7 @@
             <td style="color:#64748b; font-size:12.5px;">${formatDate(l.created_at)}</td>
             <td>
               <div class="action-group">
+                <button class="btn-sm btn-edit" onclick="openEditModal(${l.id})">&#x270F;&#xFE0F; Edit</button>
                 ${waLink ? `<a href="${waLink}" target="_blank" class="btn-sm btn-wa">&#x1F4AC; WhatsApp</a>` : ''}
                 <button class="btn-sm btn-view" onclick="viewSession('${l.session_id}', '${l.contact}')">&#x1F441; Chat History</button>
               </div>
@@ -699,6 +742,71 @@
 
     function closeModal() {
       document.getElementById('transcript-modal').classList.remove('open');
+    }
+
+    // Lead Manual Edit Functions
+    function openEditModal(leadId) {
+      const lead = allLeads.find(l => l.id === leadId);
+      if (!lead) return;
+
+      document.getElementById('edit-lead-id').value = lead.id;
+      document.getElementById('edit-lead-name').value = lead.name || '';
+      document.getElementById('edit-lead-contact').value = lead.contact || '';
+      document.getElementById('edit-lead-business').value = lead.business_name || '';
+      document.getElementById('edit-lead-interest').value = lead.interest || '';
+      document.getElementById('edit-modal-subtitle').textContent = `Editing Lead #${lead.id} (${lead.contact})`;
+
+      document.getElementById('edit-lead-modal').classList.add('open');
+      setTimeout(() => document.getElementById('edit-lead-name').focus(), 100);
+    }
+
+    function closeEditModal(e) {
+      if (e && e.target && e.target !== document.getElementById('edit-lead-modal')) return;
+      document.getElementById('edit-lead-modal').classList.remove('open');
+    }
+
+    async function saveLeadEdit(e) {
+      e.preventDefault();
+      const leadId = document.getElementById('edit-lead-id').value;
+      const saveBtn = document.getElementById('edit-save-btn');
+      const originalText = saveBtn.innerHTML;
+
+      const payload = {
+        name: document.getElementById('edit-lead-name').value.trim(),
+        contact: document.getElementById('edit-lead-contact').value.trim(),
+        business_name: document.getElementById('edit-lead-business').value.trim(),
+        interest: document.getElementById('edit-lead-interest').value.trim()
+      };
+
+      try {
+        saveBtn.disabled = true;
+        saveBtn.innerHTML = '&#x23F3; Saving...';
+
+        const res = await fetch(`/api/admin/leads/${leadId}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        const data = await res.json();
+        if (res.ok && data.status === 'ok') {
+          // Update local in-memory allLeads array
+          const idx = allLeads.findIndex(l => l.id == leadId);
+          if (idx !== -1) {
+            allLeads[idx] = { ...allLeads[idx], ...payload };
+          }
+          applyFilters();
+          closeEditModal();
+        } else {
+          alert('Failed to update lead: ' + (data.error || 'Server error'));
+        }
+      } catch (err) {
+        console.error('Error saving lead edit:', err);
+        alert('Connection error while saving lead.');
+      } finally {
+        saveBtn.disabled = false;
+        saveBtn.innerHTML = originalText;
+      }
     }
 
     // Run auth check on load

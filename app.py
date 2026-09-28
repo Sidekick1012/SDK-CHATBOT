@@ -173,19 +173,130 @@ def init_db():
     conn.execute("CREATE INDEX IF NOT EXISTS idx_leads_session ON leads(session_id)")
     conn.commit()
 
-    # Run backfill only once (flag stored in DB)
+    # Run initial backfills if needed (flag stored in DB)
     row = conn.execute("SELECT value FROM _meta WHERE key='backfill_done'").fetchone()
+    row_nb = conn.execute("SELECT value FROM _meta WHERE key='name_backfill_done'").fetchone()
     conn.close()
     if not row:
         backfill_leads()
+    if not row_nb:
+        backfill_lead_names()
 
 
 PHONE_REGEX = re.compile(r'(\+?92[\s-]?[0-9]{3}[\s-]?[0-9]{7}|03[0-9]{2}[\s-]?[0-9]{7}|\b03[0-9]{9}\b|\b[0-9]{11}\b)')
 EMAIL_REGEX = re.compile(r'([a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+)')
 
 
+URDU_STOP_WORDS = {
+    # English common
+    'tax', 'filing', 'filer', 'nonfiler', 'service', 'services', 'help', 'details', 'detail', 'accounting',
+    'erp', 'software', 'bookkeeping', 'audit', 'company', 'registration', 'register', 'business', 'fbr',
+    'hello', 'hi', 'hy', 'hey', 'dear', 'sir', 'madam', 'brother', 'bhai',
+    'ok', 'okay', 'theek', 'thik', 'shukriya', 'thanks', 'thank', 'you', 'plz', 'please',
+    'need', 'want', 'require', 'yes', 'no', 'nahi', 'nahin', 'income', 'return', 'returns',
+    'rates', 'fees', 'fee', 'cost', 'price', 'consultancy', 'consultant', 'ngo', 'trademark', 'firm',
+    'call', 'whatsapp', 'msg', 'message', 'inquiry', 'enquiry', 'send', 'share',
+    # Urdu / Roman Urdu common
+    'aoa', 'salam', 'assalam', 'o', 'alaikum', 'walikum', 'ji', 'jee', 'g', 'haan', 'han',
+    'chahiye', 'chahye', 'chaye', 'krnwai', 'karni', 'karna', 'krna', 'krne', 'karne', 'krwa', 'krwana',
+    'hai', 'h', 'hn', 'hg', 'hain', 'ho', 'hun', 'hoon', 'tha', 'thi', 'the',
+    'mara', 'mera', 'meri', 'mere', 'apka', 'aapka', 'apki', 'aapki', 'apke', 'aapke',
+    'numkbr', 'number', 'num', 'phone', 'contact', 'rabta',
+    'mai', 'mein', 'me', 'or', 'aur', 'ko', 'bhi', 'karein', 'kren', 'kar', 'karo', 'batao', 'bata', 'dein',
+    'ka', 'ki', 'ke', 'k', 'se', 'say', 'ne', 'par', 'per', 'pe',
+    'mjy', 'mujy', 'mujhe', 'muje', 'hume', 'humein', 'hum', 'ap', 'aap', 'tum',
+    'bnwnai', 'banwani', 'banwana', 'bnwana', 'kuch', 'kya', 'kia', 'kaisay', 'kaise', 'ksy', 'kesy',
+    'sahii', 'sahi', 'sai', 'saab', 'sab', 'sirf', 'wale', 'wali', 'wala', 'ye', 'yeh', 'wo', 'woh',
+    'ni', 'bs', 'kaha', 'kahan', 'busy', 'bussy', 'chal', 'chalo', 'good', 'morning', 'afternoon', 'evening', 'night'
+}
+
+
+def clean_name_candidate(cand: str) -> str:
+    """Clean and validate a potential customer name candidate."""
+    if not cand:
+        return ""
+    cand = cand.strip()
+    cand = PHONE_REGEX.sub('', cand)
+    cand = EMAIL_REGEX.sub('', cand)
+    cand = re.sub(r'[^A-Za-z\s]', ' ', cand)
+    words = [w for w in cand.split() if w.lower() not in URDU_STOP_WORDS and len(w) >= 2]
+    if 1 <= len(words) <= 3:
+        for w in words:
+            if not w.isalpha() or len(w) < 2:
+                return ""
+        return " ".join(words).title()
+    return ""
+
+
+def extract_name_from_text(text: str) -> str:
+    """Extract name if explicitly stated in text (e.g. 'Mera naam Aqib hai' or 'Name: Aqib')."""
+    patterns = [
+        r'(?:mera\s+naam|my\s+name\s+is|name\s+is|i\s+am|im|this\s+is|naam\s+hai)\s+([A-Za-z\s]{2,30})',
+        r'(?:naam|name)\s*[:=\-]\s*([A-Za-z\s]{2,30})',
+    ]
+    for pat in patterns:
+        m = re.search(pat, text, re.IGNORECASE)
+        if m:
+            clean = clean_name_candidate(m.group(1))
+            if clean:
+                return clean
+    return ""
+
+
+def extract_name_from_turn(message: str, history: list) -> str:
+    """Detect customer name from current message or previous assistant prompt."""
+    # 1. Explicit pattern in current message
+    direct = extract_name_from_text(message)
+    if direct:
+        return direct
+
+    # 2. Check if previous assistant message asked for the user's name
+    last_assistant_msg = ""
+    for turn in reversed(history or []):
+        role = turn.get("role")
+        msg = turn.get("message") or turn.get("content") or ""
+        if role in ("assistant", "model"):
+            last_assistant_msg = msg.lower()
+            break
+
+    name_prompts = ["naam", "name", "who am i speaking with", "aap ka naam", "shubh naam", "kisse baat"]
+    asked_for_name = any(np in last_assistant_msg for np in name_prompts)
+
+    if asked_for_name:
+        cand = clean_name_candidate(message)
+        if cand:
+            return cand
+
+    # 3. Message contains phone/email AND candidate name together (e.g. "03195668654 aqib walayat")
+    if PHONE_REGEX.search(message) or EMAIL_REGEX.search(message):
+        cand = clean_name_candidate(message)
+        if cand:
+            return cand
+
+    return ""
+
+
+def scan_session_for_name(conn, session_id: str) -> str:
+    """Scan all messages in a session to find the best detected customer name."""
+    rows = conn.execute(
+        "SELECT role, message FROM conversations WHERE session_id = ? ORDER BY id ASC",
+        (session_id,)
+    ).fetchall()
+    history_so_far = []
+    found_name = ""
+    for r in rows:
+        role = r['role']
+        msg = r['message']
+        if role == 'user':
+            name = extract_name_from_turn(msg, history_so_far)
+            if name:
+                found_name = name
+        history_so_far.append({"role": role, "message": msg})
+    return found_name
+
+
 def auto_capture_lead(session_id: str, message: str, history: list):
-    """Automatically detect phone numbers or email addresses in messages and record as lead."""
+    """Automatically detect phone numbers, emails, and visitor names in messages and record/update leads in real time."""
     contact = None
     pm = PHONE_REGEX.search(message)
     em = EMAIL_REGEX.search(message)
@@ -194,43 +305,91 @@ def auto_capture_lead(session_id: str, message: str, history: list):
     elif em:
         contact = em.group(0).lower().strip()
 
-    if not contact:
-        return
+    detected_name = extract_name_from_turn(message, history)
 
-    # Simple keyword matching instead of slow Gemini API
+    # Determine interest from message keywords
     interest = "Tax / Accounting / ERP"
     msg_lower = message.lower()
     if "tax" in msg_lower: interest = "Tax Consultancy"
     elif "erp" in msg_lower or "software" in msg_lower: interest = "ERP & Accounting Software"
-    elif "register" in msg_lower or "company" in msg_lower: interest = "Company Registration"
+    elif "register" in msg_lower or "company" in msg_lower or "ngo" in msg_lower: interest = "Company Registration"
     elif "bookkeeping" in msg_lower or "accounts" in msg_lower: interest = "Bookkeeping Services"
 
-    # Use a direct sqlite3 connection (NOT get_db/g) so this works inside
-    # an active Flask request context without creating a nested app_context
-    # that Flask tears down (and closes) before the commit completes.
+    # Use a direct sqlite3 connection (NOT get_db/g) for thread-safety and persistence
     try:
         conn = sqlite3.connect(DB_PATH, timeout=30)
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA journal_mode=WAL;")
         conn.execute("PRAGMA synchronous=NORMAL;")
-        existing = conn.execute("SELECT id FROM leads WHERE contact = ?", (contact,)).fetchone()
         now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
-        if existing:
-            conn.execute(
-                "UPDATE leads SET created_at = ?, interest = ? WHERE id = ?",
-                (now_str, interest, existing['id'])
-            )
-        else:
-            conn.execute(
-                "INSERT INTO leads (session_id, name, business_name, contact, interest, created_at) "
-                "VALUES (?, ?, ?, ?, ?, ?)",
-                (session_id, "Website Visitor", "Inquiry via Chat", contact, interest, now_str)
-            )
+
+        # Case 1: Contact was provided in this message
+        if contact:
+            # If name not detected in this message, scan previous messages in this session
+            if not detected_name:
+                detected_name = scan_session_for_name(conn, session_id)
+            final_name = detected_name if detected_name else "Website Visitor"
+
+            existing = conn.execute(
+                "SELECT id, name FROM leads WHERE contact = ? OR session_id = ? ORDER BY id DESC LIMIT 1",
+                (contact, session_id)
+            ).fetchone()
+
+            if existing:
+                update_name = detected_name if detected_name else (
+                    existing['name'] if existing['name'] and existing['name'] != 'Website Visitor' else "Website Visitor"
+                )
+                conn.execute(
+                    "UPDATE leads SET contact = ?, created_at = ?, interest = ?, name = ? WHERE id = ?",
+                    (contact, now_str, interest, update_name, existing['id'])
+                )
+                app.logger.info(f"Lead updated: {contact} (Name: {update_name})")
+            else:
+                conn.execute(
+                    "INSERT INTO leads (session_id, name, business_name, contact, interest, created_at) "
+                    "VALUES (?, ?, ?, ?, ?, ?)",
+                    (session_id, final_name, "Inquiry via Chat", contact, interest, now_str)
+                )
+                app.logger.info(f"New lead captured: {contact} (Name: {final_name})")
+
+        # Case 2: Contact not in this message, but user provided their name (or responded to name question)
+        elif detected_name:
+            # Check if there is already an active lead captured for this session
+            existing = conn.execute(
+                "SELECT id, name FROM leads WHERE session_id = ? ORDER BY id DESC LIMIT 1",
+                (session_id,)
+            ).fetchone()
+            if existing:
+                if not existing['name'] or existing['name'] in ('Website Visitor', 'Inquiry via Chat'):
+                    conn.execute("UPDATE leads SET name = ? WHERE id = ?", (detected_name, existing['id']))
+                    app.logger.info(f"Auto-enriched lead #{existing['id']} with name: {detected_name}")
+
         conn.commit()
         conn.close()
-        app.logger.info(f"Lead saved/updated: {contact}")
     except Exception as e:
-        app.logger.error(f"Error saving lead: {e}")
+        app.logger.error(f"Error in auto_capture_lead: {e}")
+
+
+def backfill_lead_names():
+    """Scan existing leads and automatically enrich missing names from past conversation history."""
+    try:
+        conn = sqlite3.connect(DB_PATH, timeout=30)
+        conn.row_factory = sqlite3.Row
+        leads = conn.execute(
+            "SELECT id, session_id, name, contact FROM leads WHERE name IS NULL OR name = '' OR name = 'Website Visitor'"
+        ).fetchall()
+        updated_count = 0
+        for l in leads:
+            detected = scan_session_for_name(conn, l['session_id'])
+            if detected:
+                conn.execute("UPDATE leads SET name = ? WHERE id = ?", (detected, l['id']))
+                updated_count += 1
+        conn.execute("INSERT OR REPLACE INTO _meta (key, value) VALUES ('name_backfill_done', '1')")
+        conn.commit()
+        conn.close()
+        app.logger.info(f"Backfilled real names for {updated_count} existing leads.")
+    except Exception as e:
+        app.logger.warning(f"Notice during name backfill: {e}")
 
 
 def backfill_leads():
@@ -511,6 +670,39 @@ def admin_leads():
 
     rows = db.execute(query, params).fetchall()
     return jsonify([dict(r) for r in rows])
+
+
+@app.route("/api/admin/leads/<int:lead_id>", methods=["PUT", "POST"])
+@require_admin
+def admin_update_lead(lead_id):
+    """Manually update lead details (name, contact, business_name, interest)."""
+    data = request.get_json(silent=True) or {}
+    name = (data.get("name") or "").strip()
+    contact = (data.get("contact") or "").strip()
+    business_name = (data.get("business_name") or "").strip()
+    interest = (data.get("interest") or "").strip()
+
+    db = get_db()
+    lead = db.execute("SELECT * FROM leads WHERE id = ?", (lead_id,)).fetchone()
+    if not lead:
+        return jsonify({"error": "Lead not found"}), 404
+
+    new_name = name if name else lead["name"]
+    new_contact = contact if contact else lead["contact"]
+    new_business = business_name if business_name else lead["business_name"]
+    new_interest = interest if interest else lead["interest"]
+
+    db.execute(
+        "UPDATE leads SET name = ?, contact = ?, business_name = ?, interest = ? WHERE id = ?",
+        (new_name, new_contact, new_business, new_interest, lead_id)
+    )
+    db.commit()
+    updated = db.execute("SELECT * FROM leads WHERE id = ?", (lead_id,)).fetchone()
+    return jsonify({
+        "status": "ok",
+        "message": "Lead updated successfully",
+        "lead": dict(updated)
+    })
 
 
 @app.route("/api/admin/conversation/<session_id>", methods=["GET"])
