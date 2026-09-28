@@ -200,26 +200,33 @@ def auto_capture_lead(session_id: str, message: str, history: list):
     with app.app_context():
         db = get_db()
         existing = db.execute("SELECT id FROM leads WHERE contact = ?", (contact,)).fetchone()
-        if not existing:
-            # Fast synchronous insert to avoid PythonAnywhere background thread killing
-            interest = "Tax / Accounting / ERP"
-            
-            # Simple keyword matching instead of slow Gemini API
-            msg_lower = message.lower()
-            if "tax" in msg_lower: interest = "Tax Consultancy"
-            elif "erp" in msg_lower or "software" in msg_lower: interest = "ERP & Accounting Software"
-            elif "register" in msg_lower or "company" in msg_lower: interest = "Company Registration"
-            elif "bookkeeping" in msg_lower or "accounts" in msg_lower: interest = "Bookkeeping Services"
+        
+        # Fast synchronous insert/update to avoid PythonAnywhere background thread killing
+        interest = "Tax / Accounting / ERP"
+        
+        # Simple keyword matching instead of slow Gemini API
+        msg_lower = message.lower()
+        if "tax" in msg_lower: interest = "Tax Consultancy"
+        elif "erp" in msg_lower or "software" in msg_lower: interest = "ERP & Accounting Software"
+        elif "register" in msg_lower or "company" in msg_lower: interest = "Company Registration"
+        elif "bookkeeping" in msg_lower or "accounts" in msg_lower: interest = "Bookkeeping Services"
 
-            try:
+        try:
+            if existing:
+                # Update timestamp if they message again
+                db.execute(
+                    "UPDATE leads SET created_at = ?, interest = ? WHERE id = ?",
+                    (datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"), interest, existing['id'])
+                )
+            else:
                 db.execute(
                     "INSERT INTO leads (session_id, name, business_name, contact, interest, created_at) "
                     "VALUES (?, ?, ?, ?, ?, ?)",
                     (session_id, "Website Visitor", "Inquiry via Chat", contact, interest, datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"))
                 )
-                db.commit()
-            except Exception as e:
-                app.logger.error(f"Error saving lead: {e}")
+            db.commit()
+        except Exception as e:
+            app.logger.error(f"Error saving lead: {e}")
 
 
 def backfill_leads():
