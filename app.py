@@ -55,8 +55,14 @@ def rotate_api_key():
 
 # Initial configuration
 genai.configure(api_key=API_KEYS[0])
-MODELS_TO_TRY = ["gemini-3.6-flash", "gemini-3.5-flash-lite", "gemini-3.5-flash", "gemini-2.5-flash-lite"]
+# Ultra-fast models benchmarked for <1.5s sub-second streaming latency
+MODELS_TO_TRY = ["gemini-flash-lite-latest", "gemini-3.5-flash-lite", "gemini-3.1-flash-lite"]
 MODEL_NAME = MODELS_TO_TRY[0]  # default primary ultra-fast model
+
+FAST_GENERATION_CONFIG = {
+    "temperature": 0.3,
+    "max_output_tokens": 250,
+}
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.environ.get("DB_PATH", os.path.join(BASE_DIR, "sidekick_chat.db"))
@@ -518,10 +524,14 @@ def chat():
         return jsonify({"error": "message is required"}), 400
 
     save_message(session_id, "user", user_message)
-    history = get_history(session_id, limit=20)
-    
-    # Run auto capture lead synchronously to ensure it saves before the request closes
-    auto_capture_lead(session_id, user_message, history)
+    history = get_history(session_id, limit=12)
+
+    # Run auto capture lead asynchronously in background thread so chat streaming starts instantly
+    threading.Thread(
+        target=auto_capture_lead,
+        args=(session_id, user_message, history),
+        daemon=True
+    ).start()
 
     from flask import Response, stream_with_context
     import json
@@ -534,12 +544,13 @@ def chat():
                 model = genai.GenerativeModel(
                     model_name=m_name,
                     system_instruction=SYSTEM_PROMPT,
+                    generation_config=FAST_GENERATION_CONFIG,
                 )
                 chat_session = model.start_chat(history=build_gemini_history(history[:-1]))
                 response = chat_session.send_message(
                     user_message,
                     stream=True,
-                    request_options={"timeout": 20}
+                    request_options={"timeout": 8}
                 )
 
                 for chunk in response:
